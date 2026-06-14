@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3000;
 /* =========================
    🧠 URL BASE IPTV
 ========================= */
-const  M3U_URL = https://iptv-org.github.io/iptv/countries/ar.m3u";
+const M3U_URL = https://iptv-org.github.io/iptv/countries/ar.m3u";
 // ⚠️ reemplazá por tu URL real si cambia
 
 /* =========================
