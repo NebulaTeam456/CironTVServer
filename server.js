@@ -3,72 +3,113 @@ const cors = require("cors");
 const fetch = require("node-fetch");
 
 const app = express();
-
 app.use(cors());
 
-/* 🔥 ENDPOINT PRINCIPAL */
-app.get("/channels", async (req, res) => {
+/* =========================
+   🧠 PARSER M3U → JSON
+========================= */
+function parseM3U(text) {
 
-try {
+  const lines = text.split("\n");
 
-// IPTV-ORG base M3U
-const url = "https://iptv-org.github.io/iptv/index.m3u";
+  const channels = [];
 
-const response = await fetch(url);
-const text = await response.text();
+  let current = null;
 
-let channels = [];
-let current = null;
+  for (let line of lines) {
 
-const lines = text.split("\n");
+    line = line.trim();
 
-for (let line of lines) {
+    // nombre del canal
+    if (line.startsWith("#EXTINF")) {
 
-if (line.startsWith("#EXTINF")) {
-current = {
-name: line.split(",")[1] || "Canal sin nombre",
-url: ""
-};
+      const nameMatch = line.split(",")[1];
+
+      current = {
+        name: nameMatch || "Sin nombre",
+        url: ""
+      };
+    }
+
+    // URL del stream
+    else if (line.startsWith("http")) {
+
+      if (current) {
+        current.url = line;
+
+        channels.push(current);
+        current = null;
+      }
+    }
+  }
+
+  return channels;
 }
 
-else if (line.startsWith("http")) {
-if (current) {
-current.url = line.trim();
-channels.push(current);
-current = null;
-}
+/* =========================
+   📡 CARGAR IPTV-ORG (ARGENTINA)
+========================= */
+async function loadArgentinaChannels() {
+
+  const url = "https://iptv-org.github.io/iptv/countries/ar.m3u";
+
+  const res = await fetch(url);
+  const text = await res.text();
+
+  let channels = parseM3U(text);
+
+  // limpieza básica
+  channels = channels.filter(c =>
+    c.name &&
+    c.url &&
+    c.url.startsWith("http")
+  );
+
+  return channels;
 }
 
-}
+/* =========================
+   🚀 ENDPOINT PRINCIPAL
+========================= */
+app.get("/channel", async (req, res) => {
 
-/* limpieza básica */
-channels = channels.filter(c => c.url.includes("http"));
+  try {
 
-res.json({
-ok: true,
-total: channels.length,
-channels: channels.slice(0, 200)
+    const country = req.query.country;
+
+    let channels = await loadArgentinaChannels();
+
+    // 🇦🇷 filtro (por si quieres mantenerlo flexible)
+    if (country) {
+
+      if (country.toLowerCase() === "ar") {
+        // ya viene filtrado desde IPTV-org
+        channels = channels;
+      } else {
+        channels = [];
+      }
+    }
+
+    res.json(channels);
+
+  } catch (err) {
+    console.error("ERROR IPTV:", err);
+    res.json([]);
+  }
 });
 
-} catch (err) {
-
-res.json({
-ok: false,
-error: "Error cargando IPTV",
-channels: []
-});
-
-}
-
-});
-
-/* 🔥 HEALTH CHECK */
+/* =========================
+   HEALTH CHECK
+========================= */
 app.get("/", (req, res) => {
-res.send("SironTV Server activo 🚀");
+  res.send("SironTV Server OK 🚀");
 });
 
-/* 🚀 START */
+/* =========================
+   START
+========================= */
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
-console.log("Servidor SironTV en puerto " + PORT);
+  console.log("Server running on port", PORT);
 });
