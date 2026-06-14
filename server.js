@@ -1,69 +1,88 @@
 const express = require("express");
-const cors = require("cors");
 const fetch = require("node-fetch");
 
 const app = express();
-app.use(cors());
+const PORT = process.env.PORT || 3000;
 
 /* =========================
-   🧠 PARSER M3U → JSON
+   🧠 URL BASE IPTV
 ========================= */
-function parseM3U(text) {
+const const M3U_URL = https://iptv-org.github.io/iptv/countries/ar.m3u";
+// ⚠️ reemplazá por tu URL real si cambia
 
-  const lines = text.split("\n");
+/* =========================
+   🧹 LIMPIAR NOMBRES
+========================= */
+function cleanName(raw) {
+
+  if (!raw) return "Sin nombre";
+
+  return raw
+    .replace(/\[.*?\]/g, "")
+    .replace(/\(.*?\)/g, "")
+    .replace(/group-title=.*?,/gi, "")
+    .replace(/tvg-id=".*?"/gi, "")
+    .replace(/tvg-name=".*?"/gi, "")
+    .replace(/tvg-logo=".*?"/gi, "")
+    .replace(/Mozilla|Chrome|Safari|Gecko|AppleWebKit|VLC/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/* =========================
+   🌍 FILTRO ARGENTINA
+========================= */
+function isArgentinaChannel(text = "", url = "") {
+
+  const t = (text + url).toLowerCase();
+
+  return (
+    t.includes("argentina") ||
+    t.includes("arg") ||
+    t.includes("latam") ||
+    t.includes("esp") ||
+    t.includes("español")
+  );
+}
+
+/* =========================
+   📡 PARSE M3U
+========================= */
+function parseM3U(m3uText) {
+
+  const lines = m3uText.split("\n");
 
   const channels = [];
-
   let current = null;
 
   for (let line of lines) {
 
     line = line.trim();
 
-    // nombre del canal
     if (line.startsWith("#EXTINF")) {
 
-      const nameMatch = line.split(",")[1];
+      const rawName = line.split(",")[1] || "";
 
       current = {
-        name: nameMatch || "Sin nombre",
+        name: cleanName(rawName),
         url: ""
       };
     }
 
-    // URL del stream
     else if (line.startsWith("http")) {
 
       if (current) {
         current.url = line;
 
-        channels.push(current);
+        // 🔥 filtro Argentina
+        if (isArgentinaChannel(current.name, current.url)) {
+          channels.push(current);
+        }
+
         current = null;
       }
     }
   }
-
-  return channels;
-}
-
-/* =========================
-   📡 CARGAR IPTV-ORG (ARGENTINA)
-========================= */
-async function loadArgentinaChannels() {
-
-  const url = "https://iptv-org.github.io/iptv/countries/ar.m3u";
-
-  const res = await fetch(url);
-  const text = await res.text();
-
-  let channels = parseM3U(text);
-
-  // limpieza básica
-  channels = channels.filter(c =>
-    c.name &&
-    c.url &&
-    c.url.startsWith("http")
-  );
 
   return channels;
 }
@@ -75,41 +94,32 @@ app.get("/channel", async (req, res) => {
 
   try {
 
-    const country = req.query.country;
+    console.log("📡 Descargando M3U...");
 
-    let channels = await loadArgentinaChannels();
+    const response = await fetch(M3U_URL);
+    const text = await response.text();
 
-    // 🇦🇷 filtro (por si quieres mantenerlo flexible)
-    if (country) {
+    console.log("🧠 Parseando...");
 
-      if (country.toLowerCase() === "ar") {
-        // ya viene filtrado desde IPTV-org
-        channels = channels;
-      } else {
-        channels = [];
-      }
-    }
+    const channels = parseM3U(text);
+
+    console.log("✔ Canales:", channels.length);
 
     res.json(channels);
 
   } catch (err) {
-    console.error("ERROR IPTV:", err);
-    res.json([]);
+
+    console.log("❌ ERROR:", err);
+
+    res.status(500).json({
+      error: "No se pudo cargar playlist"
+    });
   }
 });
 
 /* =========================
-   HEALTH CHECK
+   🟢 START SERVER
 ========================= */
-app.get("/", (req, res) => {
-  res.send("SironTV Server OK 🚀");
-});
-
-/* =========================
-   START
-========================= */
-const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log("🚀 Server corriendo en puerto", PORT);
 });
