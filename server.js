@@ -1,12 +1,18 @@
 const express = require("express");
 const fetch = require("node-fetch");
+const cors = require("cors");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const M3U_URL = "https://iptv-org.github.io/iptv/countries/ar.m3u";
 
-/* =========================
+app.use(cors({
+   origin: "*",
+   methods: ["GET"]
+}));
+
+/* ======================
    🧹 LIMPIAR NOMBRE
 ========================= */
 function cleanName(raw) {
