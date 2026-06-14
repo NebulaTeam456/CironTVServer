@@ -5,13 +5,14 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 /* =========================
-   🧠 URL BASE IPTV
+   📡 URL IPTV (TU FUENTE)
 ========================= */
 const M3U_URL = "https://iptv-org.github.io/iptv/countries/ar.m3u";
-// ⚠️ reemplazá por tu URL real si cambia
+// 🔥 pon aquí tu URL real si es otra
 
 /* =========================
-   🧹 LIMPIAR NOMBRES
+   🧹 LIMPIAR SOLO NOMBRES
+   (NO BORRA CANALES)
 ========================= */
 function cleanName(raw) {
 
@@ -30,22 +31,6 @@ function cleanName(raw) {
 }
 
 /* =========================
-   🌍 FILTRO ARGENTINA
-========================= */
-function isArgentinaChannel(text = "", url = "") {
-
-  const t = (text + url).toLowerCase();
-
-  return (
-    t.includes("argentina") ||
-    t.includes("arg") ||
-    t.includes("latam") ||
-    t.includes("esp") ||
-    t.includes("español")
-  );
-}
-
-/* =========================
    📡 PARSE M3U
 ========================= */
 function parseM3U(m3uText) {
@@ -59,6 +44,7 @@ function parseM3U(m3uText) {
 
     line = line.trim();
 
+    // 🧠 Detecta info del canal
     if (line.startsWith("#EXTINF")) {
 
       const rawName = line.split(",")[1] || "";
@@ -69,15 +55,14 @@ function parseM3U(m3uText) {
       };
     }
 
+    // 🌐 URL del stream
     else if (line.startsWith("http")) {
 
       if (current) {
         current.url = line;
 
-        // 🔥 filtro Argentina
-        if (isArgentinaChannel(current.name, current.url)) {
-          channels.push(current);
-        }
+        // ✔ SIEMPRE lo agrega (NO FILTRA NADA)
+        channels.push(current);
 
         current = null;
       }
@@ -88,7 +73,7 @@ function parseM3U(m3uText) {
 }
 
 /* =========================
-   🚀 ENDPOINT PRINCIPAL
+   🚀 API /channel
 ========================= */
 app.get("/channel", async (req, res) => {
 
@@ -99,20 +84,20 @@ app.get("/channel", async (req, res) => {
     const response = await fetch(M3U_URL);
     const text = await response.text();
 
-    console.log("🧠 Parseando...");
+    console.log("🧠 Parseando M3U...");
 
     const channels = parseM3U(text);
 
-    console.log("✔ Canales:", channels.length);
+    console.log("✔ Total canales:", channels.length);
 
     res.json(channels);
 
   } catch (err) {
 
-    console.log("❌ ERROR:", err);
+    console.log("❌ ERROR SERVER:", err);
 
     res.status(500).json({
-      error: "No se pudo cargar playlist"
+      error: "No se pudo cargar la playlist"
     });
   }
 });
